@@ -71,5 +71,7 @@ void init_c(void)
         uart_send_string("[BOOT] Jump to kernel main\r\n");
         start_kernel(secondary_boot_flag);
 
+        
+
         /* Never reach here */
 }
