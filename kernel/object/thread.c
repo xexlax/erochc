@@ -84,7 +84,7 @@ void thread_deinit(void *thread_ptr)
 static u64 load_binary(struct cap_group *cap_group, struct vmspace *vmspace,
                        const char *bin, struct process_metadata *metadata)
 {
-        struct elf_file *elf;
+         struct elf_file *elf;
         vmr_prop_t flags;
         int i, r;
         size_t seg_sz, seg_map_sz;
@@ -108,6 +108,25 @@ static u64 load_binary(struct cap_group *cap_group, struct vmspace *vmspace,
                         seg_sz = elf->p_headers[i].p_memsz;
                         p_vaddr = elf->p_headers[i].p_vaddr;
                         /* LAB 3 TODO BEGIN */
+                        
+
+                        //map size of bin
+                        vaddr_t start = ROUND_DOWN(p_vaddr, PAGE_SIZE);
+                        vaddr_t end = ROUND_UP(seg_sz + p_vaddr, PAGE_SIZE);
+                        seg_map_sz = end - start;
+
+                        //create pmo returns cap
+                        if((pmo_cap[i] = create_pmo(seg_map_sz, PMO_DATA, cap_group, &pmo))<0){
+                                obj_free(pmo);
+                                goto out_free_cap;
+                        }
+                                
+                        
+                        //copy binary data
+                        memcpy((void *)(phys_to_virt(pmo->start) + (p_vaddr - start)), bin + elf->p_headers[i].p_offset, elf->p_headers[i].p_filesz);
+                        
+                        flags = PFLAGS2VMRFLAGS(elf->p_headers[i].p_flags);
+                        ret = vmspace_map_range(vmspace, p_vaddr, seg_map_sz, flags, pmo);
 
                         /* LAB 3 TODO END */
                         BUG_ON(ret != 0);
@@ -126,6 +145,8 @@ static u64 load_binary(struct cap_group *cap_group, struct vmspace *vmspace,
 
         /* PC: the entry point */
         return elf->header.e_entry;
+out_free_obj:
+        obj_free(pmo);
 out_free_cap:
         for (--i; i >= 0; i--) {
                 if (pmo_cap[i] != 0)
@@ -133,7 +154,12 @@ out_free_cap:
         }
 out_fail:
         return r;
+
 }
+    
+
+
+
 
 /* Defined in page_table.S (maybe required on aarch64) */
 extern void flush_idcache(void);
@@ -399,6 +425,8 @@ void sys_thread_exit(void)
         printk("\nBack to kernel.\n");
 #endif
         /* LAB 3 TODO BEGIN */
+
+        current_thread->thread_ctx->thread_exit_state = TE_EXITING;
 
         /* LAB 3 TODO END */
         printk("Lab 3 hang.\n");
