@@ -223,7 +223,7 @@ int query_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t *pa, pte_t **entry)
         ptp_t* cur_ptp = (ptp_t* ) pgtbl;
         ptp_t* next_ptp = NULL;
         pte_t* next_pte = NULL;
-        int ret = 0;
+        
 
         for (int level = 0; level <= 3; level++) {
                 int ret;
@@ -274,7 +274,7 @@ int map_range_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
         pte_t *pte;
         ptp_0 = pgtbl;
 
-        vaddr_t rb= va+len;
+        
                 
         while(len>= PAGE_SIZE){
                 
@@ -338,7 +338,7 @@ int map_range_in_pgtbl_huge(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
 {
         /* LAB 2 TODO 4 BEGIN */
 
-        ptp_t *ptp_0,*ptp_1,*ptp_2,*ptp_3;
+        ptp_t *ptp_0,*ptp_1,*ptp_2;
         pte_t *pte;
         ptp_0 = pgtbl;
 
@@ -387,7 +387,7 @@ int map_range_in_pgtbl_huge(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
 int unmap_range_in_pgtbl_huge(void *pgtbl, vaddr_t va, size_t len)
 {
         /* LAB 2 TODO 4 BEGIN */
-        ptp_t *ptp_0,*ptp_1,*ptp_2,*ptp_3;
+        ptp_t *ptp_0,*ptp_1,*ptp_2;
         pte_t *pte;
         ptp_0 = pgtbl;
         u64 PAGE_SIZE_1G = 1<<30;
