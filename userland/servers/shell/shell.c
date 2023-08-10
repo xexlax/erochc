@@ -134,7 +134,38 @@ int do_complement(char *buf, char *complement, int complement_time)
 	int offset;
 
 	/* LAB 5 TODO BEGIN */
+	int file_fd = alloc_fd();
+	struct ipc_msg *ipc_msg_open = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+    chcore_assert(ipc_msg_open);
+	struct fs_request * fr_open =
+                   (struct fs_request *)ipc_get_msg_data(ipc_msg_open);
+	fr_open->req = FS_REQ_OPEN;
+	char path[2];
+	path[0] = '/';
+	path[1] = '\0';
+	strcpy(fr_open->open.pathname, path);
+    fr_open->open.flags = O_RDONLY;
+    fr_open->open.new_fd = file_fd;
+	file_fd = ipc_call(fs_ipc_struct, ipc_msg_open);
+	ipc_destroy_msg(fs_ipc_struct, ipc_msg_open);
 
+	ret = getdents(file_fd, scan_buf, BUFLEN);
+
+	for (offset = 0; offset < ret; offset += p->d_reclen) {
+		memset(name, '\0', sizeof(name));
+		p = (struct dirent *)(scan_buf + offset);
+		get_dent_name(p, name);
+		if(*name == '.' && strlen(name) == 1){
+			continue;
+		}
+		if(j == complement_time){
+			memcpy(buf, name, strlen(name));
+			r = 1;
+			break;
+		}
+		j++;
+	}
 	/* LAB 5 TODO END */
 
 	return r;
@@ -166,7 +197,17 @@ char *readline(const char *prompt)
 
 	/* LAB 5 TODO BEGIN */
 	/* Fill buf and handle tabs with do_complement(). */
-
+	if(c == '\t'){
+			do_complement(buf, complement, complement_time);
+			printf("%s\n", buf);
+			complement_time++;
+			continue;
+		}
+	if(c == '\n' || c == '\r'){
+		break;
+	}
+	buf[i] = c;
+	i++;
 	/* LAB 5 TODO END */
 	}
 
@@ -183,7 +224,32 @@ void print_file_content(char* path)
 {
 
 	/* LAB 5 TODO BEGIN */
+	int file_fd = alloc_fd();
+	struct ipc_msg *ipc_msg_open = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+    chcore_assert(ipc_msg_open);
+	struct fs_request * fr_open =
+                   (struct fs_request *)ipc_get_msg_data(ipc_msg_open);
+	fr_open->req = FS_REQ_OPEN;
+	strcpy(fr_open->open.pathname, path);
+    fr_open->open.flags = O_RDONLY;
+    fr_open->open.new_fd = file_fd;
+	file_fd = ipc_call(fs_ipc_struct, ipc_msg_open);
+	ipc_destroy_msg(fs_ipc_struct, ipc_msg_open);
 
+	struct ipc_msg *ipc_msg_read = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+	chcore_assert(ipc_msg_read);
+	struct fs_request * fr_read =
+                   (struct fs_request *)ipc_get_msg_data(ipc_msg_read);
+	fr_read->req = FS_REQ_READ;
+	fr_read->read.count = BUFLEN;
+	fr_read->read.fd = file_fd;
+	int ret = ipc_call(fs_ipc_struct, ipc_msg_read);
+	char buf[BUFLEN];
+	memcpy(buf, ipc_get_msg_data(ipc_msg_read), ret);
+	ipc_destroy_msg(fs_ipc_struct, ipc_msg_read);
+	printf("%s", buf);
 	/* LAB 5 TODO END */
 
 }
@@ -193,6 +259,36 @@ void fs_scan(char *path)
 {
 
 	/* LAB 5 TODO BEGIN */
+	int file_fd = alloc_fd();
+	struct ipc_msg *ipc_msg_open = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+    chcore_assert(ipc_msg_open);
+	struct fs_request * fr_open =
+                   (struct fs_request *)ipc_get_msg_data(ipc_msg_open);
+	fr_open->req = FS_REQ_OPEN;
+	strcpy(fr_open->open.pathname, path);
+    fr_open->open.flags = O_RDONLY;
+    fr_open->open.new_fd = file_fd;
+	file_fd = ipc_call(fs_ipc_struct, ipc_msg_open);
+	ipc_destroy_msg(fs_ipc_struct, ipc_msg_open);
+
+	char name[BUFLEN];
+	char scan_buf[BUFLEN];
+	int offset;
+	struct dirent *p;
+	int ret = getdents(file_fd, scan_buf, BUFLEN);
+
+	// printf("after getdents ret is %d\n", ret);
+	for (offset = 0; offset < ret; offset += p->d_reclen) {
+		p = (struct dirent *)(scan_buf + offset);
+		get_dent_name(p, name);
+		if(*name == '.' && strlen(name) == 1){
+			continue;
+		}
+		printf("%s ", name);
+		memset(name, '\0', sizeof(name));
+	}
+
 
 	/* LAB 5 TODO END */
 }
@@ -226,6 +322,11 @@ int do_cat(char *cmdline)
 int do_echo(char *cmdline)
 {
 	/* LAB 5 TODO BEGIN */
+	cmdline += 4;
+	while(cmdline && *cmdline == ' '){
+		cmdline++;
+	}
+	printf("%s", cmdline);
 
 	/* LAB 5 TODO END */
 	return 0;
@@ -278,6 +379,8 @@ int run_cmd(char *cmdline)
 	int cap = 0;
 	/* Hint: Function chcore_procm_spawn() could be used here. */
 	/* LAB 5 TODO BEGIN */
+	printf("%s\n", cmdline);
+	chcore_procm_spawn(cmdline, &cap);
 
 	/* LAB 5 TODO END */
 	return 0;

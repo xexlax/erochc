@@ -79,6 +79,44 @@ void strip_path(struct mount_point_info_node *mpinfo, char* path) {
 /* You could add new functions here as you want. */
 /* LAB 5 TODO BEGIN */
 
+static struct ipc_struct *fakefs_ipc_struct = NULL;
+
+static struct ipc_struct *tmpfs_ipc_struct = NULL;
+
+static void connect_fakefs_server(int fakefs_cap)
+{
+        fakefs_ipc_struct = ipc_register_client(fakefs_cap);
+        chcore_assert(fakefs_ipc_struct);
+}
+
+void connect_tmpfs_server(void)
+{
+        int tmpfs_cap = __chcore_get_tmpfs_cap();
+        tmpfs_ipc_struct = ipc_register_client(tmpfs_cap);
+}
+
+bool checkFakefs(char pathname[]){
+	bool isFakefs = false;
+	char *path = pathname;
+	char *fakefsPath = "/fakefs";
+	while(path && *path != '\0'){
+		if(*fakefsPath == *path){
+			path++;
+			fakefsPath++;
+			if((!fakefsPath && !path) || (*fakefsPath == '\0' && *path == '\0')){
+				return true;
+			}
+		}
+		else{
+			if((!fakefsPath || *fakefsPath == '\0') && path){
+				return true;
+			}
+			break;
+		}
+	}
+	return false;
+}
+
 /* LAB 5 TODO END */
 
 
@@ -92,7 +130,7 @@ void fsm_server_dispatch(struct ipc_msg *ipc_msg, u64 client_badge)
 
 	/* You could add code here as you want.*/
 	/* LAB 5 TODO BEGIN */
-
+	connect_tmpfs_server();
 	/* LAB 5 TODO END */
 
 	spinlock_lock(&fsmlock);
@@ -113,6 +151,95 @@ void fsm_server_dispatch(struct ipc_msg *ipc_msg, u64 client_badge)
 			break;
 
 		/* LAB 5 TODO BEGIN */
+
+		case FS_REQ_CREAT:{
+			printf("fs create %s\n", fr->creat.pathname);
+			if(checkFakefs(fr->creat.pathname)){
+				char *path = "/fakefs";
+				mpinfo = get_mount_point(path, strlen(path));
+			}
+			else{
+				char *path = "/";
+				mpinfo = get_mount_point(path, strlen(path));
+			}
+			strip_path(mpinfo, fr->creat.pathname);
+			struct ipc_msg *ipc_msg_fs = ipc_create_msg(
+				mpinfo->_fs_ipc_struct, sizeof(struct fs_request), 0);
+			chcore_assert(ipc_msg_fs);
+			struct fs_request * fr_fs =
+					(struct fs_request *)ipc_get_msg_data(ipc_msg_fs);
+			fr_fs->req = FS_REQ_CREAT;
+			strcpy(fr_fs->creat.pathname, fr->creat.pathname);
+			ret = ipc_call(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+			ipc_destroy_msg(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+
+			break;
+		}
+		case FS_REQ_OPEN:{
+			
+			if(checkFakefs(fr->open.pathname)){
+				char *path = "/fakefs";
+				mpinfo = get_mount_point(path, strlen(path));
+
+			}
+			else{
+				char *path = "/";
+				mpinfo = get_mount_point(path, strlen(path));
+
+			}
+			strip_path(mpinfo, fr->open.pathname);
+			struct ipc_msg *ipc_msg_fs = ipc_create_msg(
+				mpinfo->_fs_ipc_struct, sizeof(struct fs_request), 0);
+			chcore_assert(ipc_msg_fs);
+			struct fs_request * fr_fs =
+				(struct fs_request *)ipc_get_msg_data(ipc_msg_fs);
+			fr_fs->req = FS_REQ_OPEN;
+			strcpy(fr_fs->open.pathname, fr->open.pathname);
+
+			fr_fs->open.flags = O_RDONLY;
+			fr_fs->open.new_fd = fr->open.new_fd;
+			ret = ipc_call(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+
+			fsm_set_mount_info_withfd(client_badge, ret, mpinfo);
+			ipc_destroy_msg(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+
+			break;
+		}
+		case FS_REQ_READ:{
+
+			mpinfo = fsm_get_mount_info_withfd(client_badge, fr->read.fd);
+			int cnt = fr->read.count;
+            struct ipc_msg *ipc_msg_fs = ipc_create_msg(
+                    mpinfo->_fs_ipc_struct, sizeof(struct fs_request), 0);
+            chcore_assert(ipc_msg_fs);
+            struct fs_request * fr_fs =
+                    (struct fs_request *)ipc_get_msg_data(ipc_msg_fs);
+            fr_fs->req = FS_REQ_READ;
+            fr_fs->read.fd = fr->read.fd;
+            fr_fs->read.count = cnt;
+            ret = ipc_call(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+			char *buf = (void *)fr;
+            if(ret > 0) {
+                memcpy(buf, ipc_get_msg_data(ipc_msg_fs), ret);
+            }
+            ipc_destroy_msg(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+
+			break;
+		}
+		case FS_REQ_GETDENTS64:{
+
+			mpinfo = fsm_get_mount_info_withfd(client_badge, fr->getdents64.fd);
+			struct ipc_msg *ipc_msg_fs = ipc_create_msg(mpinfo->_fs_ipc_struct, 512, 0);
+			struct fs_request * fr_fs = (struct fs_request *)ipc_get_msg_data(ipc_msg_fs);
+			fr_fs->req = FS_REQ_GETDENTS64;
+			fr_fs->getdents64.fd = fr->getdents64.fd;
+			fr_fs->getdents64.count = fr->getdents64.count;
+			ret = ipc_call(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+			ipc_set_msg_data(ipc_msg, ipc_get_msg_data(ipc_msg_fs), 0, ret);
+			ipc_destroy_msg(mpinfo->_fs_ipc_struct, ipc_msg_fs);
+
+			break;
+		}
 
 		/* LAB 5 TODO END */
 
